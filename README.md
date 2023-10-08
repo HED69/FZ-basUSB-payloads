@@ -17,4 +17,4 @@ change line 338 to your password
 
 you must leave the word "STRING"
 
-[payload](./blob/main/generic_recon_v3_4.txt)
+[payload](./generic_recon_v3_4.txt)
